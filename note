@@ -1,0 +1,12 @@
+To get data as quick as possible from multiple pins, checkout
+ stream and compare what it does compared to just printing the
+ data in the normal way with print
+ 
+ 2.21 - 1.50 / 2  - 0.355 per g! i accel känslighet.
+ 
+ SD CARD
+ spi mode - öppet, långsamt (hur långsamt?)
+ sdio mode - stängt, snabbt... Måste skriva på non-disclosure för att få använda (kan vara värt att titta in i om hastighetsöverföring blir ett problem.) måste göra github private isåfall.
+ 	FILSYSTEM
+ 	fat16 vanligt, långsamt
+ 	raw - snabbare och mindre för arduinon att hantera. (Hur svårt kan det vara? Översätt allt binärt... Korrupt data blir ett problem)
