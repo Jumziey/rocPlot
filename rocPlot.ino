@@ -8,15 +8,21 @@
 	p("x: "); p(x); p(" y: "); p(y); p(" z: "); pln(z);
 	p("zup: "); p(zup); p(" zdown: "); pln(zdown);
 	p("x: "); p(x); p(" y: "); p(y); p(" z: "); pln(z);
+	
+	SS -> 10
+	mosi -> 11
+	miso ->  12
+	sck -> 13
+
 */
 
 enum {
 	ss = 10,
-	logtime = 1*10*10*10
+	logtime = 3*10*10*10
 };
 
 int init(byte);
-//File initSD(void);
+File initSD(void);
 
 float x,y,z;
 float xref, yref, zref;	
@@ -38,8 +44,6 @@ void setup()
 	zup = zdown = 0;
 	ac = 1;
 	
-	
-	
 	for(;;)
 		if(Serial.available())
 			if(initAcc(Serial.read()))
@@ -58,29 +62,27 @@ void setup()
 	}
 	pln("Sd card initialized");
 	
-	
-	start = millis();
+	start = millis(); //Wanna remove the initialization time. 
 }
 
 void loop() 
 {
-
-	
 	x = (analogRead(A0)-xref)/ ac; 
 	y = (analogRead(A1)-yref)/ ac;	
 	z = (analogRead(A2)-zref)/ ac;
 	
-	logfile.print(x); logfile.print(y); logfile.println(z);
+	
+	logfile.print(x); logfile.print(" "); 
+	logfile.print(y); logfile.print(" "); 
+	logfile.println(z);
 	
 	if((millis()-start) > logtime)
 	{
 		pln("logging done");
 		logfile.close();
-		delay(200);
+		delay(200); //So the arduino has time to empty the print buffer
 		exit(0);
 	}
-	
-		
 }
 
 /*##################################*/
@@ -109,7 +111,7 @@ int initAcc(byte input)
 				ac = (fabs(zup-zdown)/2);
 				xref = x; yref = y;
 				if((zup-zdown)>0)
-					zref = z + ac;
+					zref = z + ac; 
 				else
 					zref = z - ac;
 				 return(1);
@@ -134,7 +136,7 @@ File initSD()
 		if(!entry)
 			break;
 		
-		if(!entry.isDirectory()); //ignores directories on the sdcard
+		if(!entry.isDirectory()) //ignores directories on the sdcard
 			SD.remove(entry.name());
 	}
 	logfile = SD.open("/log.txt", FILE_WRITE);
