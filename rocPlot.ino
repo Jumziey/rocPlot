@@ -7,7 +7,6 @@
 /*
 	p("x: "); p(x); p(" y: "); p(y); p(" z: "); pln(z);
 	p("zup: "); p(zup); p(" zdown: "); pln(zdown);
-	p("x: "); p(x); p(" y: "); p(y); p(" z: "); pln(z);
 	
 	SS -> 10
 	mosi -> 11
@@ -69,12 +68,11 @@ void loop()
 {
 	x = (analogRead(A0)-xref)/ ac; 
 	y = (analogRead(A1)-yref)/ ac;	
-	z = (analogRead(A2)-zref)/ ac;
-	
+	z = (analogRead(A2)-zref)/ ac - 1; //<--- ASSUMING a straight orientaiton
 	
 	logfile.print(x); logfile.print(" "); 
 	logfile.print(y); logfile.print(" "); 
-	logfile.println(z);
+	logfile.println(z)
 	
 	if((millis()-start) > logtime)
 	{
