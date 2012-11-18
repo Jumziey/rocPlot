@@ -10,9 +10,7 @@ To get data as quick as possible from multiple pins, checkout
  	FILSYSTEM
  	fat16 vanligt, långsamt
  	raw - snabbare och mindre för arduinon att hantera. (Hur svårt kan det vara? Översätt allt binärt... Korrupt data blir ett problem)
- 	
+ 
 Temperature might get important, the accelerometer behaves diffrent depending on temperature changes.
 
 first draft, 425 points per second (Stable from the first second)
-
-DIRECTORIES ARE GETTING DELETED
