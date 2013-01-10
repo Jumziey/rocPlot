@@ -1,142 +1,147 @@
 #include <SD.h>
+#include <Wire.h>
+
+/*
+
+A5 - SCL
+A4 - SDA
+
+*/
 
 #define pln(x) Serial.println(x)
 #define p(x) Serial.print(x)
 
-
-/*
-	p("x: "); p(x); p(" y: "); p(y); p(" z: "); pln(z);
-	p("zup: "); p(zup); p(" zdown: "); pln(zdown);
-	
-	SS -> 10
-	mosi -> 11
-	miso ->  12
-	sck -> 13
-
-*/
-
 enum {
-	ss = 10,
-	logtime = 3*10*10*10
+	gyro_dev = (0xD0>>1), //Removing the r/w bit
+
+	dlpf_cfg_0 = 1<<0,
+	dlpf_cfg_1 = 1<<1,
+	dlpf_cfg_2 = 1<<2,
+	dlpf_fs_sel_0 = 1<<3,
+	dlpf_fs_sel_1 = 1<<4,
+	
+	//Gyro registers
+	gyro_xout_h = 0x1D,
+	gyro_xout_l = 0x1E,
+	gyro_yout_h = 0x1F,
+	gyro_yout_l = 0x20,
+	gyro_zout_h = 0x21,
+	gyro_zout_l = 0x22,
+	
+	temp_out_h = 0x1B,
+	temp_out_l = 0x1C,
+	
+	who_am_i = 0x00,
+	smplrt_div = 0x15,
+	dlpf_fs = 0x16,
+	int_cfg = 0x17,
+	int_status = 0x1A,
+	pwr_mgm = 0x3E,
+	
 };
 
-int init(byte);
-File initSD(void);
-
-float x,y,z;
-float xref, yref, zref;	
-float zup, zdown, zdiff; 	// init checkers 
-float ac;				//Translation constant from volt to m/s^2
-
-File logfile;
-unsigned long start;
-
+typedef struct {
+	int x;
+	int y;
+	int z;
+} Data;
 
 void setup() 
 {
-	
+	unsigned char data;
 
 	Serial.begin(9600);
+	Wire.begin();
 	
-	//constants needed to be set before any call to initAcc()
-	xref = yref = zref = 0;
-	zup = zdown = 0;
-	ac = 1;
-	
-	for(;;)
-		if(Serial.available())
-			if(initAcc(Serial.read()))
-				break;
-				
-	pln("Accelerometer is initialized");
-	
-	pln();
-	pln("Checking SD card");
-	logfile = initSD();
-	if(!logfile)
-	{
-		pln("SD card initialization failed, exiting program");
-		delay(200); 	//So the arduino has time to empty the print buffer
-		exit(1);
-	}
-	pln("Sd card initialized");
-	
-	start = millis(); //Wanna remove the initialization time. 
+	//GYRO
+	//+/- 2000 degrees per sec. Internal sample rate 1kHz, low pass filter 188Hz
+	i2cWrite(gyro_dev, dlpf_fs, (dlpf_fs_sel_0 | dlpf_fs_sel_1 | dlpf_cfg_0));
+	//sample rate divider 1kHz/10 = 100Hz
+	i2cWrite(gyro_dev, smplrt_div, 9);
 }
 
-void loop() 
+void loop()
 {
-	x = (analogRead(A0)-xref)/ ac; 
-	y = (analogRead(A1)-yref)/ ac;	
-	z = (analogRead(A2)-zref)/ ac - 1; //<--- ASSUMING a straight orientaiton
-	
-	logfile.print(x); logfile.print(" "); 
-	logfile.print(y); logfile.print(" "); 
-	logfile.println(z)
-	
-	if((millis()-start) > logtime)
-	{
-		pln("logging done");
-		logfile.close();
-		delay(200); //So the arduino has time to empty the print buffer
-		exit(0);
-	}
+	//Gyro supports interrupt to see when new data is available -- might be good to use
+	p(gyro('x')); p('\t'); p(gyro('y')); p('\t'); pln(gyro('z'));
+	delay(10);
+
 }
 
-/*##################################*/
-
-
-
-int initAcc(byte input)
+int gyro(char orient)
 {
-	switch(input)
-	{
-		case 'a':
-			if(zup != 0 && zdown != 0) //Accelerometer allrdy initialized
-				return(1);
-				
-			x = (analogRead(A0)-xref)/ ac; 
-			y = (analogRead(A1)-yref)/ ac;	
-			z = (analogRead(A2)-zref)/ ac;	
-			
-			if(zup == 0)
-				zup = z;
-			else
-				zdown = z;
-			
-			if(zup != 0 && zdown != 0) 	//All data accumulated to initialize
-			{
-				ac = (fabs(zup-zdown)/2);
-				xref = x; yref = y;
-				if((zup-zdown)>0)
-					zref = z + ac; 
-				else
-					zref = z - ac;
-				 return(1);
-			} 
-		default:
-			return(0);
-	}
-}
-
-
-File initSD() 
-{
-	File root, entry, logfile;
+	int d = 0;
+	char gyro_reg;
 	
-	if(!SD.begin(ss))	//Check that the SD-card works
-		return(File());
-	
-	root = SD.open("/", FILE_READ);
-	for(;;)
-	{
-		entry = root.openNextFile();
-		if(!entry)
+	//Choose register
+	switch(orient) {
+		case 'x':
+			gyro_reg = gyro_xout_h;
 			break;
-		
-		if(!entry.isDirectory()) //ignores directories on the sdcard
-			SD.remove(entry.name());
+		case 'y':
+			gyro_reg = gyro_yout_h;
+			break;
+		case 'z':
+			gyro_reg = gyro_zout_h;
+			break;
+		default:
+			pln("ERROR USE OF gyro()");
+			exit(3);
 	}
-	logfile = SD.open("/log.txt", FILE_WRITE);
-	return logfile;
+
+	Wire.beginTransmission(gyro_dev);
+	Wire.write(gyro_reg);
+	Wire.endTransmission(gyro_dev);
+	Wire.requestFrom(gyro_dev, 2);
+	
+	if(Wire.available()) 
+	{
+		d = (Wire.read()<<8);
+		
+		if(Wire.available()) 
+		{
+			d |= Wire.read();
+		} else {
+			d = 0;
+			pln("ERROR READING GYRO");
+			exit(3);
+		}
+	} else {
+		d = 0;
+		pln("ERROR READING GYRO");
+		exit(3);
+	}
+	Wire.endTransmission();
+	return d;
 }
+	
+void i2cWrite(char device, char reg, char data)
+{
+	Wire.beginTransmission(device);
+	Wire.write(reg); 	//The register we wanna write to
+	Wire.write(data);
+	Wire.endTransmission();
+}
+	
+unsigned char i2cRead(char device, char reg)
+{
+	unsigned char data;
+
+	//We say what register we wanna read from.
+	Wire.beginTransmission(device);
+	Wire.write(reg);
+	Wire.endTransmission(device);
+	
+	Wire.requestFrom(device, 1);
+	if(Wire.available()) {
+		data = Wire.read();
+	} else {
+		data = 0xEF;
+		pln("Error reading "); p(device); p(" "); p(reg);
+	}
+	Wire.endTransmission();
+	
+	return data;
+}
+
+	

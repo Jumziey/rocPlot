@@ -14,3 +14,6 @@ To get data as quick as possible from multiple pins, checkout
 Temperature might get important, the accelerometer behaves diffrent depending on temperature changes.
 
 first draft, 425 points per second (Stable from the first second)
+
+Left todo
+	Get a 6dof and implement the code for a gyrometer!
