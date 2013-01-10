@@ -12,6 +12,7 @@ A4 - SDA
 #define p(x) Serial.print(x)
 
 enum {
+	//Gyro Stuff
 	gyro_dev = (0xD0>>1), //Removing the r/w bit
 
 	dlpf_cfg_0 = 1<<0,
@@ -20,7 +21,7 @@ enum {
 	dlpf_fs_sel_0 = 1<<3,
 	dlpf_fs_sel_1 = 1<<4,
 	
-	//Gyro registers
+	
 	gyro_xout_h = 0x1D,
 	gyro_xout_l = 0x1E,
 	gyro_yout_h = 0x1F,
@@ -38,13 +39,34 @@ enum {
 	int_status = 0x1A,
 	pwr_mgm = 0x3E,
 	
+	//Accelerometer Stuff
+	acc_dev = (0xA6>>1), //Removing  the r/w bit
+	
+	power_ctl = 0x2D,
+	data_format = 0x31,
+	
+	datax0 = 0x32,
+	datax1 = 0x33,
+	datay0 = 0x34,
+	datay1 = 0x35,
+	dataz0 = 0x36,
+	dataz1 = 0x37,
+	
+	acc_measure = 1<<3,
+	acc_full_res = 1<<3,
+	acc_range_2g = 0,
+	acc_range_4g = 1,
+	acc_range_8g = 1<<1,
+	acc_range_16g = (1<<0 | 1<<1),
+	
+	
 };
 
-typedef struct {
+struct Data {
 	int x;
 	int y;
 	int z;
-} Data;
+};
 
 void setup() 
 {
@@ -58,63 +80,79 @@ void setup()
 	i2cWrite(gyro_dev, dlpf_fs, (dlpf_fs_sel_0 | dlpf_fs_sel_1 | dlpf_cfg_0));
 	//sample rate divider 1kHz/10 = 100Hz
 	i2cWrite(gyro_dev, smplrt_div, 9);
+	
+	//ACC
+	i2cWrite(acc_dev, data_format, acc_range_4g);
+	i2cWrite(acc_dev, power_ctl, (acc_measure | acc_full_res));		//Tell the acc to start measuring
 }
 
 void loop()
 {
-	//Gyro supports interrupt to see when new data is available -- might be good to use
-	p(gyro('x')); p('\t'); p(gyro('y')); p('\t'); pln(gyro('z'));
-	delay(10);
+	struct Data gyro, acc;
+
+	gyro = gyroData();
+	acc = accData();
+	//p(gyro.x); p('\t'); p(gyro.y); p('\t'); p(gyro.z);
+	//p("|| "); 
+	pln(acc.z); //p('\t'); p(acc.y); p('\t'); pln(acc.z);
+	delay(500);
 
 }
-
-int gyro(char orient)
+struct Data accData(void)
 {
-	int d = 0;
-	char gyro_reg;
+	int *g;
+	struct Data d;
 	
-	//Choose register
-	switch(orient) {
-		case 'x':
-			gyro_reg = gyro_xout_h;
-			break;
-		case 'y':
-			gyro_reg = gyro_yout_h;
-			break;
-		case 'z':
-			gyro_reg = gyro_zout_h;
-			break;
-		default:
-			pln("ERROR USE OF gyro()");
-			exit(3);
-	}
-
-	Wire.beginTransmission(gyro_dev);
-	Wire.write(gyro_reg);
-	Wire.endTransmission(gyro_dev);
-	Wire.requestFrom(gyro_dev, 2);
+	g = i2cReadBytes(acc_dev, datax0, 6);
 	
-	if(Wire.available()) 
-	{
-		d = (Wire.read()<<8);
-		
-		if(Wire.available()) 
-		{
-			d |= Wire.read();
-		} else {
-			d = 0;
-			pln("ERROR READING GYRO");
-			exit(3);
-		}
-	} else {
-		d = 0;
-		pln("ERROR READING GYRO");
-		exit(3);
-	}
-	Wire.endTransmission();
+	d.x = ((g[0]<<8) | g[1]);
+	d.y = ((g[2]<<8) | g[3]);
+	d.z = ((g[4]<<8) | g[5]);
+	
+	free(g);
 	return d;
 }
+
+struct Data gyroData(void)
+{
+	int *x, *y, *z;
+	struct Data d;
 	
+	x = i2cReadBytes(gyro_dev, gyro_xout_h, 2);
+	y = i2cReadBytes(gyro_dev, gyro_yout_h, 2);
+	z = i2cReadBytes(gyro_dev, gyro_zout_h, 2);
+	
+	d.x = ((x[0]<<8) | x[1]);
+	d.y = ((y[0]<<8) | y[1]);
+	d.z = ((z[0]<<8) | z[1]);
+	
+	free(x);free(y);free(z);
+	return d;
+}
+
+int* i2cReadBytes(char device, char reg, int nrBytes)
+{
+	int i, *d;
+	
+	d = (int*) malloc(nrBytes);
+
+	Wire.beginTransmission(device);
+	Wire.write(reg);
+	Wire.endTransmission(device);
+	Wire.requestFrom(device, nrBytes);
+	
+	for(i=0; i<nrBytes; i++) {
+		if(Wire.available()) 
+		{
+			d[i] = Wire.read();
+		} else {
+			pln("ERROR READING i2cReadBytes");
+			exit(3);
+		}
+	}
+	return d;
+}
+
 void i2cWrite(char device, char reg, char data)
 {
 	Wire.beginTransmission(device);
