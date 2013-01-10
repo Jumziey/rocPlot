@@ -83,7 +83,7 @@ void setup()
 	
 	//ACC
 	i2cWrite(acc_dev, data_format, acc_range_4g);
-	i2cWrite(acc_dev, power_ctl, (acc_measure | acc_full_res));		//Tell the acc to start measuring
+	i2cWrite(acc_dev, power_ctl, (acc_measure));		//Tell the acc to start measuring
 }
 
 void loop()
@@ -92,10 +92,10 @@ void loop()
 
 	gyro = gyroData();
 	acc = accData();
-	//p(gyro.x); p('\t'); p(gyro.y); p('\t'); p(gyro.z);
-	//p("|| "); 
-	pln(acc.z); //p('\t'); p(acc.y); p('\t'); pln(acc.z);
-	delay(500);
+	p(gyro.x); p('\t'); p(gyro.y); p('\t'); p(gyro.z);
+	p("|| "); 
+	p(acc.x); p('\t'); p(acc.y); p('\t'); pln(acc.z);
+	delay(10);
 
 }
 struct Data accData(void)
@@ -105,9 +105,9 @@ struct Data accData(void)
 	
 	g = i2cReadBytes(acc_dev, datax0, 6);
 	
-	d.x = ((g[0]<<8) | g[1]);
-	d.y = ((g[2]<<8) | g[3]);
-	d.z = ((g[4]<<8) | g[5]);
+	d.x = ((g[1]<<8) | g[0]);
+	d.y = ((g[3]<<8) | g[2]);
+	d.z = ((g[5]<<8) | g[4]);
 	
 	free(g);
 	return d;
