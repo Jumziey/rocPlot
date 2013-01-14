@@ -3,8 +3,15 @@
 
 /*
 
-A5 - SCL
-A4 - SDA
+	//6dof
+	SCL -> a4
+	SDA -> a5
+	
+	//SD-card
+	SS -> d10
+	mosi -> d11
+	miso ->  d12
+	sck -> d13
 
 gyro_scale = 14.375;
 acc_scale = 128;
@@ -65,6 +72,13 @@ enum {
 	acc_range_8g = 1<<1,
 	acc_range_16g = (1<<0 | 1<<1),
 	
+	warn_light = 8,
+	warn_time = 2000,
+	measure_light = 9,
+	
+	ss = 10,	//Sd card setting
+	logtime = 5*1000,
+	
 };
 
 int gyro_x_bias = 0;
@@ -76,6 +90,7 @@ int acc_y_bias = 0;
 int acc_z_bias = 0;
 
 unsigned long start_time;
+File logfile;
 
 struct Data {
 	int x;
@@ -85,22 +100,33 @@ struct Data {
 
 void setup() 
 {
+
+	
 	Serial.begin(9600);
 	Wire.begin();
 	
-	//GYRO
-	//+/- 2000 degrees per sec. Internal sample rate 1kHz, low pass filter 188Hz
-	i2cWrite(gyro_dev, dlpf_fs, (dlpf_fs_sel_0 | dlpf_fs_sel_1 | dlpf_cfg_0));
-	//sample rate divider 1kHz/10 = 100Hz
-	i2cWrite(gyro_dev, smplrt_div, 9);
+	//We need the 6dof to be placed correctly with no movement on it, lets give a warning.
+	digitalWrite(warn_light, HIGH);
+	delay(warn_time);
 	
-	//ACC
-	i2cWrite(acc_dev, data_format, 0x01 );	//Set data_format, remember to set acc_scale accordingly
-	i2cWrite(acc_dev, power_ctl, 0x08);		//Tell the acc to start measuring
+	//Initialize the 6dof
+	initAcc(100);
+	initGyro(100);
+
+	pln("Checking SD card");
+	logfile = initSD();
+	if(!logfile)
+	{
+		pln("SD card initialization failed, exiting program");
+		delay(200); 	//So the arduino has time to empty the print buffer
+		digitalWrite(measure_light, LOW);
+		exit(1);
+	}
+	pln("Sd card initialized");
 	
-	//Set bias
-	accInit(100);
-	gyroInit(100);
+	digitalWrite(warn_light, LOW);	//Non-movement phase is over
+	digitalWrite(measure_light, HIGH);	//We're now measuring
+	
 	start_time = millis();
 }
 
@@ -110,11 +136,20 @@ void loop()
 	gyro = gyroData();
 	acc = accData();
 	
-	p(acc.x);p("\t");p(acc.y);p("\t");p(acc.z);
-	p("\t\t");
-	p(gyro.x);p("\t");p(gyro.y);p("\t");p(gyro.z);
-	p("\t\t");
-	pln((millis() - start_time));
+	logfile.print(acc.x); logfile.print("\t"); logfile.print(acc.y); logfile.print("\t");logfile.print(acc.z);
+	logfile.print("\t\t");
+	logfile.print(gyro.x); logfile.print("\t"); logfile.print(gyro.y); logfile.print("\t");logfile.print(gyro.z);
+	logfile.print("\t\t");
+	logfile.println((millis()-start_time));
+
+	if((millis()-start_time) > logtime)
+	{
+		pln("logging done");
+		logfile.close();
+		digitalWrite(measure_light, LOW);
+		delay(200); //So the arduino has time to empty the print buffer
+		exit(0);
+	}
 	
 	
 	//Max frequency for the Wire library is 100hz
@@ -187,7 +222,17 @@ void i2cWrite(char device, char reg, char data)
 	Wire.endTransmission();
 }
 
-void gyroInit(int mean)
+void initGyro(int mean)
+{
+	//+/- 2000 degrees per sec. Internal sample rate 1kHz, low pass filter 188Hz
+	i2cWrite(gyro_dev, dlpf_fs, (dlpf_fs_sel_0 | dlpf_fs_sel_1 | dlpf_cfg_0));
+	i2cWrite(gyro_dev, smplrt_div, 9);	//sample rate divider 1kHz/10 = 100Hz
+	
+	setGyroBias(mean);
+}
+
+
+void setGyroBias(int mean)
 {
 	int x,y,z, i;
 	struct Data gyro;
@@ -205,7 +250,16 @@ void gyroInit(int mean)
 	gyro_y_bias = y/mean;
 	gyro_z_bias = z/mean;
 }
-void accInit(int mean)
+
+void initAcc(int mean)
+{
+	i2cWrite(acc_dev, data_format, 0x01 );	//Set data_format, remember to set acc_scale accordingly
+	i2cWrite(acc_dev, power_ctl, 0x08);		//We must tell the acc to start measuring
+	
+	setAccBias(mean);
+}
+
+void setAccBias(int mean)
 {
 	int x,y,z, i;
 	struct Data acc;
@@ -222,4 +276,25 @@ void accInit(int mean)
 	acc_x_bias = x/mean;
 	acc_y_bias = y/mean;
 	acc_z_bias = z/mean;
+}
+
+File initSD() 
+{
+	File root, entry, logfile;
+
+	if(!SD.begin(ss))	//Check that the SD-card works
+		return(File());
+
+	root = SD.open("/", FILE_READ);
+	for(;;)
+	{
+		entry = root.openNextFile();
+		if(!entry)
+			break;
+
+		if(!entry.isDirectory()) //ignores directories on the sdcard
+			SD.remove(entry.name());
+	}
+	logfile = SD.open("/log.txt", FILE_WRITE);
+	return logfile;
 }
