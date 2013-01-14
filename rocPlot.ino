@@ -14,13 +14,7 @@ acc_scale = 128;
 #define pln(x) Serial.println(x)
 #define p(x) Serial.print(x)
 
-int gyro_x_bias = 0;
-int gyro_y_bias = 0;
-int gyro_z_bias = 0;
 
-int acc_x_bias = 0;
-int acc_y_bias = 0;
-int acc_z_bias = 0;
 
 enum {
 	//Gyro Stuff
@@ -73,6 +67,16 @@ enum {
 	
 };
 
+int gyro_x_bias = 0;
+int gyro_y_bias = 0;
+int gyro_z_bias = 0;
+
+int acc_x_bias = 0;
+int acc_y_bias = 0;
+int acc_z_bias = 0;
+
+unsigned long start_time;
+
 struct Data {
 	int x;
 	int y;
@@ -97,9 +101,9 @@ void setup()
 	//Set bias
 	accInit(100);
 	gyroInit(100);
+	start_time = millis();
 }
 
-int i = 0;
 void loop()
 {
 	struct Data gyro,acc;
@@ -108,7 +112,10 @@ void loop()
 	
 	p(acc.x);p("\t");p(acc.y);p("\t");p(acc.z);
 	p("\t\t");
-	p(gyro.x);p("\t");p(gyro.y);p("\t");pln(gyro.z);
+	p(gyro.x);p("\t");p(gyro.y);p("\t");p(gyro.z);
+	p("\t\t");
+	pln((millis() - start_time));
+	
 	
 	//Max frequency for the Wire library is 100hz
 	delay(10);
