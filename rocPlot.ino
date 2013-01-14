@@ -6,10 +6,21 @@
 A5 - SCL
 A4 - SDA
 
+gyro_scale = 14.375;
+acc_scale = 128;
+
 */
 
 #define pln(x) Serial.println(x)
 #define p(x) Serial.print(x)
+
+int gyro_x_bias = 0;
+int gyro_y_bias = 0;
+int gyro_z_bias = 0;
+
+int acc_x_bias = 0;
+int acc_y_bias = 0;
+int acc_z_bias = 0;
 
 enum {
 	//Gyro Stuff
@@ -41,6 +52,7 @@ enum {
 	
 	//Accelerometer Stuff
 	acc_dev = (0xA6>>1), //Removing  the r/w bit
+	acc_scale = 128,	//Depends on the range and resolution... And temperature
 	
 	power_ctl = 0x2D,
 	data_format = 0x31,
@@ -59,7 +71,6 @@ enum {
 	acc_range_8g = 1<<1,
 	acc_range_16g = (1<<0 | 1<<1),
 	
-	
 };
 
 struct Data {
@@ -70,8 +81,6 @@ struct Data {
 
 void setup() 
 {
-	unsigned char data;
-
 	Serial.begin(9600);
 	Wire.begin();
 	
@@ -82,59 +91,70 @@ void setup()
 	i2cWrite(gyro_dev, smplrt_div, 9);
 	
 	//ACC
-	i2cWrite(acc_dev, data_format, acc_range_4g);
-	i2cWrite(acc_dev, power_ctl, (acc_measure));		//Tell the acc to start measuring
+	i2cWrite(acc_dev, data_format, 0x01 );	//Set data_format, remember to set acc_scale accordingly
+	i2cWrite(acc_dev, power_ctl, 0x08);		//Tell the acc to start measuring
+	
+	//Set bias
+	accInit(100);
+	gyroInit(100);
 }
 
+int i = 0;
 void loop()
 {
-	struct Data gyro, acc;
-
+	struct Data gyro,acc;
 	gyro = gyroData();
 	acc = accData();
-	p(gyro.x); p('\t'); p(gyro.y); p('\t'); p(gyro.z);
-	p("|| "); 
-	p(acc.x); p('\t'); p(acc.y); p('\t'); pln(acc.z);
+	
+	p(acc.x);p("\t");p(acc.y);p("\t");p(acc.z);
+	p("\t\t");
+	p(gyro.x);p("\t");p(gyro.y);p("\t");pln(gyro.z);
+	
+	//Max frequency for the Wire library is 100hz
 	delay(10);
-
 }
+
 struct Data accData(void)
 {
-	int *g;
+	byte g[6];
 	struct Data d;
 	
-	g = i2cReadBytes(acc_dev, datax0, 6);
+	i2cReadBytes(acc_dev, datax0, 6, g);
 	
-	d.x = ((g[1]<<8) | g[0]);
-	d.y = ((g[3]<<8) | g[2]);
-	d.z = ((g[5]<<8) | g[4]);
+	d.x = (((int)g[1])<<8) | (int) g[0];
+	d.y = (((int)g[3])<<8) | (int) g[2];
+	d.z = (((int)g[5])<<8) | (int) g[4];
 	
-	free(g);
+	d.x -= acc_x_bias;
+	d.y -= acc_y_bias;
+	d.z -= acc_z_bias;
+	
 	return d;
 }
 
 struct Data gyroData(void)
 {
-	int *x, *y, *z;
+	byte x[2], y[2], z[2];
 	struct Data d;
 	
-	x = i2cReadBytes(gyro_dev, gyro_xout_h, 2);
-	y = i2cReadBytes(gyro_dev, gyro_yout_h, 2);
-	z = i2cReadBytes(gyro_dev, gyro_zout_h, 2);
+	i2cReadBytes(gyro_dev, gyro_xout_h, 2, x);
+	i2cReadBytes(gyro_dev, gyro_yout_h, 2, y);
+	i2cReadBytes(gyro_dev, gyro_zout_h, 2, z);
 	
-	d.x = ((x[0]<<8) | x[1]);
-	d.y = ((y[0]<<8) | y[1]);
-	d.z = ((z[0]<<8) | z[1]);
+	d.x = (((int)x[0])<<8) | (int) x[1];
+	d.y = (((int)y[0])<<8) | (int) y[1];
+	d.z = (((int)z[0])<<8) | (int) z[1];
 	
-	free(x);free(y);free(z);
+	d.x -= gyro_x_bias;
+	d.y -= gyro_y_bias;
+	d.z -= gyro_z_bias;
+	
 	return d;
 }
 
-int* i2cReadBytes(char device, char reg, int nrBytes)
+void i2cReadBytes(char device, char reg, int nrBytes, byte *buff)
 {
-	int i, *d;
-	
-	d = (int*) malloc(nrBytes);
+	int i;
 
 	Wire.beginTransmission(device);
 	Wire.write(reg);
@@ -144,13 +164,12 @@ int* i2cReadBytes(char device, char reg, int nrBytes)
 	for(i=0; i<nrBytes; i++) {
 		if(Wire.available()) 
 		{
-			d[i] = Wire.read();
+			buff[i] = Wire.read();
 		} else {
 			pln("ERROR READING i2cReadBytes");
 			exit(3);
 		}
 	}
-	return d;
 }
 
 void i2cWrite(char device, char reg, char data)
@@ -160,26 +179,40 @@ void i2cWrite(char device, char reg, char data)
 	Wire.write(data);
 	Wire.endTransmission();
 }
-	
-unsigned char i2cRead(char device, char reg)
+
+void gyroInit(int mean)
 {
-	unsigned char data;
-
-	//We say what register we wanna read from.
-	Wire.beginTransmission(device);
-	Wire.write(reg);
-	Wire.endTransmission(device);
+	int x,y,z, i;
+	struct Data gyro;
+	x = y = z = 0;
 	
-	Wire.requestFrom(device, 1);
-	if(Wire.available()) {
-		data = Wire.read();
-	} else {
-		data = 0xEF;
-		pln("Error reading "); p(device); p(" "); p(reg);
+	for(i=0; i<mean; i++)
+	{
+		gyro = gyroData();
+		x += gyro.x;
+		y += gyro.y;
+		z += gyro.z;
+		delay(10);
 	}
-	Wire.endTransmission();
-	
-	return data;
+	gyro_x_bias = x/mean;
+	gyro_y_bias = y/mean;
+	gyro_z_bias = z/mean;
 }
-
+void accInit(int mean)
+{
+	int x,y,z, i;
+	struct Data acc;
+	x = y = z = 0;
 	
+	for(i=0; i<mean; i++)
+	{
+		acc = accData();
+		x += acc.x;
+		y += acc.y;
+		z += (acc.z - acc_scale);
+		delay(10);
+	}
+	acc_x_bias = x/mean;
+	acc_y_bias = y/mean;
+	acc_z_bias = z/mean;
+}

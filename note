@@ -1,9 +1,4 @@
-To get data as quick as possible from multiple pins, checkout
- stream and compare what it does compared to just printing the
- data in the normal way with print
- 
- 2.21 - 1.50 / 2  - 0.355 per g! i accel känslighet.
- 
+
  SD CARD
  spi mode - öppet, långsamt (hur långsamt?)
  sdio mode - stängt, snabbt... Måste skriva på non-disclosure för att få använda (kan vara värt att titta in i om hastighetsöverföring blir ett problem.) måste göra github private isåfall.
@@ -13,7 +8,14 @@ To get data as quick as possible from multiple pins, checkout
  
 Temperature might get important, the accelerometer behaves diffrent depending on temperature changes.
 
-first draft, 425 points per second (Stable from the first second)
 
-Left todo
-	Get a 6dof and implement the code for a gyrometer!
+Implemented for a 6dof < https://www.sparkfun.com/products/10121 >
+The matlab code is gonna work for any file that contains
+accX accY accZ gyroX gyroY gyroZ
+...
+
+
+Testing the gyro meter? What does reliable show one rotational acceleration?
+
+
+Must set acc scale factor in the arduino code for accurate bias calculations.
