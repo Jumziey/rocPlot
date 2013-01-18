@@ -1,26 +1,55 @@
 clear
+close all;
+
 g = 9.82;
 acc_scale = 128/g;
-gyro_scale = 14.375;
-data_list = importdata('test_log.txt');
+data_list = importdata('LOG.TXT');
 
 
 
-%h  = median_diff(data_list(:,7));
-h = 14*10e-3;
+h  = median_diff(data_list(:,7));
+h = h*1e-3;
 
-gyro_speed_z = data_list(:,6);
-gyro_speed_z = gyro_speed_x/gyro_scale;
+%%%%%%%% X-axis
+acc_x = data_list(:,1);
+acc_x = acc_x/acc_scale;
+%acc_x = smooth(acc_x, 'rlowess');
 
-subplot(1,2,1);
-x1 = 1:1:size(gyro_speed_x, 1)
+%%%%%%%% Y-axis
+acc_y = data_list(:,2);
+acc_y = acc_y/acc_scale;
+%acc_y = smooth(acc_y, 'rlowess');
 
-for i=3:(size(gyro_acc_x, 1)-2)
-	gyro_speed_x(i-2,1) = simpson(gyro_acc_x(1:1:i), h);
+
+%%%%%%%%% Z-axis
+acc_z = data_list(:,3);
+acc_z = (acc_z-(acc_scale*g))/acc_scale;
+%acc_z = smooth(acc_z, 'rlowess');
+
+
+
+for i=2:size(acc_x, 1)
+	speed_x(i-1,1) = trapz(acc_x(1:1:i))*h;
 end
 
-bxplot(x1,gyro_acc_x)
-%
-%for i=3:(size(gyro_speed_x, 1)-2)
-%	gyro_x(i-2,1) = simpson(gyro_speed_x(1:1:i), h);
-%end
+for i=2:size(acc_y, 1)
+	speed_y(i-1,1) = trapz(acc_y(1:1:i))*h;
+end
+
+for i=2:size(acc_z, 1)
+	speed_z(i-1,1) = trapz(acc_z(1:1:i))*h;
+end
+
+for i=2:size(speed_x, 1)
+	pos_x(i-1,1) = trapz(speed_x(1:1:i))*h;
+end
+for i=2:size(speed_y, 1)
+	pos_y(i-1,1) = trapz(speed_y(1:1:i))*h;
+end
+for i=2:size(speed_z, 1)
+	pos_z(i-1,1) = trapz(speed_z(1:1:i))*h;
+end
+
+plot3(pos_x,pos_y,pos_z);
+
+%Har en simpsons funk som kan användas

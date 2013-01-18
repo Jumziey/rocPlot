@@ -133,9 +133,6 @@ void loop()
 	gyro = gyroData();
 	acc = accData();
 	
-	
-	
-	
 	logfile.print(acc.x); logfile.print("\t"); logfile.print(acc.y); logfile.print("\t");logfile.print(acc.z);
 	logfile.print("\t\t");
 	logfile.print(gyro.x); logfile.print("\t"); logfile.print(gyro.y); logfile.print("\t");logfile.print(gyro.z);
