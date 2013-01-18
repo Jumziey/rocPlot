@@ -113,14 +113,19 @@ void setup()
 	initAcc(100);
 	initGyro(100);
 	
-	
+	/*
+	pln("Checking SD card");
 	logfile = initSD();
 	if(!logfile)
 	{
+		pln("SD card initialization failed, exiting program");
 		delay(200); 	//So the arduino has time to empty the print buffer
+		digitalWrite(measure_light, LOW);
 		exit(1);
 	}
-
+	pln("Sd card initialized");
+	*/
+	
 	digitalWrite(warn_light, LOW);	//Non-movement phase is over
 	digitalWrite(measure_light, HIGH);	//We're now measuring
 	
@@ -134,13 +139,19 @@ void loop()
 	acc = accData();
 	
 	
+	p(acc.x);p("\t");p(acc.y);p("\t");p(acc.z);
+	p("\t\t");
+	p(gyro.x);p("\t");p(gyro.y);p("\t");p(gyro.z);
+	p("\t\t");
+	pln((millis()-start_time));
 	
-	
+	/*
 	logfile.print(acc.x); logfile.print("\t"); logfile.print(acc.y); logfile.print("\t");logfile.print(acc.z);
 	logfile.print("\t\t");
 	logfile.print(gyro.x); logfile.print("\t"); logfile.print(gyro.y); logfile.print("\t");logfile.print(gyro.z);
 	logfile.print("\t\t");
 	logfile.println((millis()-start_time));
+	*/
 
 	if((millis()-start_time) > logtime)
 	{
